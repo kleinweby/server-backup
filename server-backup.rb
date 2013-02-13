@@ -10,6 +10,8 @@ Config = {
   :passphrase => ""
 }
 
+Options = {}
+
 class Destination
   # The url/path for duplicity
   def duplicityURL
@@ -140,7 +142,9 @@ class SourceMysql < Source
       FileUtils.rm_rf @tmpdir
     }
     
-    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{@src} > #{File.join(@tmpdir, "dump.sql")}")
+    cmd = "mysqldump --defaults-extra-file=#{File.join(@tmpdir, "my.cnf")} -u#{db_user} #{@src} > #{File.join(@tmpdir, "dump.sql")}"
+    puts cmd if Options[:verbose]
+    success = system(cmd)
     
     raise "Error creating dump" unless success
   end
@@ -284,6 +288,8 @@ class ServerBackup
     exit_status = 0
     log = nil
 
+    puts cmd if Options[:verbose]
+
     Open3.popen2e(env, cmd) { |stdin, stdout_stderr, wait_thr|
       exit_status = wait_thr.value
       
@@ -296,14 +302,17 @@ class ServerBackup
   end
 end
 
-options = {}
-
 optparse = OptionParser.new do |opts|
   opts.banner = "Usage server-backup.rb [options]"
   
-  options[:conf] = '/etc/server-backup.conf'
+  Options[:conf] = '/etc/server-backup.conf'
   opts.on '-c', '--config FILE', 'Use a config file' do |file|
-    options[:conf] = file
+    Options[:conf] = file
+  end
+  
+  Options[:verbose] = false
+  opts.on '-v', '--verbose', 'Verbose output' do
+    Options[:verbose] = true
   end
   
   opts.on( '-h', '--help', 'Display this screen' ) do
@@ -314,6 +323,6 @@ end
 
 optparse.parse!
 
-load_config options[:conf]
+load_config Options[:conf]
 
 ServerBackup.new.run
