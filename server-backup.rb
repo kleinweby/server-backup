@@ -142,6 +142,8 @@ class SourceMysql < Source
       FileUtils.rm_rf @tmpdir
     }
     
+    createMySQLConfigFile
+    
     cmd = "mysqldump --defaults-extra-file=#{File.join(@tmpdir, "my.cnf")} -u#{db_user} #{@src} > #{File.join(@tmpdir, "dump.sql")}"
     puts cmd if Options[:verbose]
     success = system(cmd)
