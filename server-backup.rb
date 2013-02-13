@@ -182,7 +182,7 @@ class SourceMysql < Source
   end
   
   def duplicityOptions
-    ["--exclude=#{File.join(@tmpdir, "my.cnf")}"]
+    ["--exclude=#{File.join(@tmpdir, "my.cnf")}", "--allow-source-mismatch"]
   end
 end
 
