@@ -1,4 +1,7 @@
 require 'open3'
+require 'optparse'
+require 'fileutils'
+require 'tmpdir'
 
 Config = {
   :dests => [],
@@ -118,15 +121,69 @@ class SourceDir < Source
   end
 end
 
-# class SourceMysql < Source
-#   def prettyName
-#     "mysql:#{@src}"
-#   end
-#   
-#   def destName
-#     "mysql-#{@src}"
-#   end
-# end
+class SourceMysql < Source
+  @tmpdir
+  @db_user
+  @db_password
+  @db_databse
+  def prettyName
+    "mysql:#{@src}"
+  end
+  
+  def destName
+    "mysql-#{@src}"
+  end
+  
+  def pre
+    @tmpdir = Dir.mktmpdir("mysql-backup")
+    
+    at_exit {
+      FileUtils.rm_rf @tmpdir
+    }
+    
+    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{db_database} > #{File.join(@tmpdir, "dump.sql")}")
+    
+    raise "Error creating dump" unless success
+  end
+  
+  def createMySQLConfigFile
+    open(File.join(@tmpdir, "my.cnf"), "w") do |f|
+      f.write <<-conf
+      [client]
+      password=#{db_password}
+      conf
+    end
+  end
+  
+  def db_password
+    @db_password || Config[:db_password]
+  end
+  
+  def db_user
+    @db_user || Config[:db_user]
+  end
+  
+  def db_database
+    @db_database
+  end
+
+  def auth(user, password)
+    @db_password = password
+    @db_user = user
+  end
+
+  def post
+    FileUtils.rm_rf @tmpdir
+  end
+  
+  def duplicityURL
+    @tmpdir
+  end
+  
+  def duplicityOptions
+    ["--exclude=#{File.join(@tmpdir, "my.cnf")}"]
+  end
+end
 
 def set(key, value)  
   Config[key] = value
@@ -148,10 +205,13 @@ def src(type, src, &block)
   Config[:srcs] << source
 end
 
-load 'config.conf',true
-
+def load_config(file)
+  load file,true
+end
 
 class ServerBackup
+
+  
   def initialize
     @failed = {}
   end
@@ -181,19 +241,32 @@ class ServerBackup
   
   def runFor(src)
     puts "Backup #{src.prettyName}"
-    src.pre
-    Config[:dests].each do |dest|
-      print " -> #{dest.prettyName}..."
-      ok, log = runDuplicity(src, dest)
+    begin
+      src.pre
+      Config[:dests].each do |dest|
+        print " -> #{dest.prettyName}..."
+        ok = false
+        log = nil
       
-      if ok
-        puts "ok."
-      else
-        @failed["#{src.prettyName}->#{dest.prettyName}"] = log
-        puts "failed."
+        begin
+          ok, log = runDuplicity(src, dest)
+        rescue Exception => e 
+          ok = false
+          log = e.message
+        end
+      
+        if ok
+          puts "ok."
+        else
+          @failed["#{src.prettyName}->#{dest.prettyName}"] = log
+          puts "failed."
+        end
       end
+      src.post
+    rescue Exception => e 
+      @failed["#{src.prettyName}"] = e.message
+      puts "failed."
     end
-    src.post
   end
   
   def runDuplicity(src, dest)
@@ -227,5 +300,25 @@ class ServerBackup
     return exit_status == 0, log
   end
 end
+
+options = {}
+
+optparse = OptionParser.new do |opts|
+  opts.banner = "Usage server-backup.rb [options]"
+  
+  options[:conf] = '/etc/server-backup.conf'
+  opts.on '-c', '--config FILE', 'Use a config file' do |file|
+    options[:conf] = file
+  end
+  
+  opts.on( '-h', '--help', 'Display this screen' ) do
+    puts opts
+    exit
+  end
+end
+
+optparse.parse!
+
+load_config options[:conf]
 
 ServerBackup.new.run
