@@ -125,7 +125,6 @@ class SourceMysql < Source
   @tmpdir
   @db_user
   @db_password
-  @db_databse
   def prettyName
     "mysql:#{@src}"
   end
@@ -141,7 +140,7 @@ class SourceMysql < Source
       FileUtils.rm_rf @tmpdir
     }
     
-    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{db_database} > #{File.join(@tmpdir, "dump.sql")}")
+    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{src} > #{File.join(@tmpdir, "dump.sql")}")
     
     raise "Error creating dump" unless success
   end
@@ -161,10 +160,6 @@ class SourceMysql < Source
   
   def db_user
     @db_user || Config[:db_user]
-  end
-  
-  def db_database
-    @db_database
   end
 
   def auth(user, password)
