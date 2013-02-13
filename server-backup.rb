@@ -140,7 +140,7 @@ class SourceMysql < Source
       FileUtils.rm_rf @tmpdir
     }
     
-    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{src} > #{File.join(@tmpdir, "dump.sql")}")
+    success = system("mysqldump -u#{db_user} --defaults-file=#{File.join(@tmpdir, "my.cnf")} #{@src} > #{File.join(@tmpdir, "dump.sql")}")
     
     raise "Error creating dump" unless success
   end
